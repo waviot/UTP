@@ -3,8 +3,8 @@
 #include "network.h"
 #include <unistd.h>
 
-void packet_handler(uint8_t *request, uint8_t request_length,
-                        uint8_t *response, uint8_t *response_length)
+void packet_handler(uint8_t *request, uint32_t request_length,
+                        uint8_t *response, uint32_t *response_length)
 {
     //printf("Received %d bytes: ",request_length);
     for(int i=0;i<request_length;i++) printf("%d ", request[i]);
@@ -38,7 +38,7 @@ WVT_UTP_Status_t memory_init(uint32_t memory_size){
  * @param size количество байт
  * @return WVT_UTP_OK при успешной процедуре инициализации
  */
-WVT_UTP_Status_t memory_read(uint16_t address, uint8_t * buffer, uint16_t size) {
+WVT_UTP_Status_t memory_read(uint32_t address, uint8_t * buffer, uint32_t size) {
     FILE *fp;
     if ((fp=fopen("storage.bin", "rb"))==NULL) {
         fclose(fp);
@@ -59,7 +59,7 @@ WVT_UTP_Status_t memory_read(uint16_t address, uint8_t * buffer, uint16_t size) 
  * @param size количество байт для записи
  * @return WVT_UTP_OK при успешной процедуре инициализации
  */
-WVT_UTP_Status_t memory_write(uint16_t address, uint8_t * buffer, uint16_t size) {
+WVT_UTP_Status_t memory_write(uint32_t address, uint8_t * buffer, uint32_t size) {
     FILE *fp;
     if ((fp=fopen("storage.bin", "r+b"))==NULL) {
         fclose(fp);
@@ -82,7 +82,7 @@ WVT_UTP_Status_t memory_write(uint16_t address, uint8_t * buffer, uint16_t size)
  * @param size размер стираемой области памяти
  * @return WVT_UTP_OK при успешной процедуре инициализации
  */
-WVT_UTP_Status_t memory_erase(uint16_t address, uint16_t size) {
+WVT_UTP_Status_t memory_erase(uint32_t address, uint32_t size) {
     //printf("Memory erasing from 0x%X. Size: 0x%X\n", address, size);
     uint8_t d = 0xFF;
     for(uint32_t i=0;i<size;i++){
@@ -101,8 +101,9 @@ int main() {
     settings.memory_read = &memory_read;
     settings.memory_write = &memory_write;
     WVT_UTP_init(settings);
+    network_init(8000);
     while(1){
-        int socket_fd = network_accept_client(8000); //Ждем подключения нового клиента
+        int socket_fd = network_accept_client(); //Ждем подключения нового клиента
         network_io_process(socket_fd, packet_handler);    //Обработка данных
         network_close(socket_fd);                         //Закрываем соединение
     }

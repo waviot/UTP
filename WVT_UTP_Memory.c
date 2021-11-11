@@ -51,7 +51,7 @@ static uint16_t WVT_UTP_Memory_get_segment_crc(WVT_UTP_Data_Header_t *header){
     while(bytes_count != sector_size){
         tail = sector_size - bytes_count;
         if(tail > sizeof(buffer)) tail = sizeof(buffer);
-        utp_struct.memory_read(header->start_address+bytes_count, &buffer, tail);
+        utp_struct.memory_read(header->start_address+bytes_count, buffer, tail);
         bytes_count += tail;
         crc = WVT_UTP_Memory_update_crc16(crc, buffer, tail);
     }
@@ -113,7 +113,8 @@ WVT_UTP_Status_t WVT_UTP_Memory_reserve_sector(WVT_UTP_Data_Header_t *header) {
     WVT_UTP_Data_Header_t tmp;
     tmp.start_address = 0;
     tmp.size = 0;
-    int count = WVT_UTP_Memory_get_files_count();
+    int count = WVT_UTP_Memory_get_segments_count();
+    if(WVT_UTP_Memory_find_by_uid(&tmp, header->uid) == WVT_UTP_OK)return WVT_UTP_ERROR; //header with uid exists
     if(count>0)WVT_UTP_Memory_get_header_by_serial_number(&tmp, count-1);
     if((header->size+sizeof(WVT_UTP_Data_Header_t))>WVT_UTP_Memory_get_free_space()) return WVT_UTP_ERROR;
     header->start_address = tmp.start_address + tmp.size;
@@ -127,7 +128,7 @@ WVT_UTP_Status_t WVT_UTP_Memory_reserve_sector(WVT_UTP_Data_Header_t *header) {
  * @return WVT_UTP_OK при успешном выполнении операции, WVT_UTP_ERROR при ошибке контрольной суммы
  */
 WVT_UTP_Status_t WVT_UTP_Memory_freeze(WVT_UTP_Data_Header_t *header) {
-    int count = WVT_UTP_Memory_get_files_count();
+    int count = WVT_UTP_Memory_get_segments_count();
     int offset = utp_struct.memory_size - (count + 1)*sizeof(WVT_UTP_Data_Header_t);
     if(WVT_UTP_Memory_get_segment_crc(header) == header->crc){
         WVT_UTP_Memory_update_header_crc(header);
@@ -153,7 +154,7 @@ int WVT_UTP_Memory_get_segments_count(void) {
 
 int WVT_UTP_Memory_find_serial_number(WVT_UTP_Data_Header_t *header)
 {
-    int count = WVT_UTP_Memory_get_files_count();
+    int count = WVT_UTP_Memory_get_segments_count();
     int sn = -1;
     WVT_UTP_Data_Header_t temp;
     for(int i=0;i<count;i++){
@@ -176,7 +177,7 @@ WVT_UTP_Status_t WVT_UTP_Memory_free(WVT_UTP_Data_Header_t *header){
     //uint32_t width = header->size;
     int header_sn = WVT_UTP_Memory_find_serial_number(header);
     if(header_sn == -1) return WVT_UTP_ERROR;
-    int count = WVT_UTP_Memory_get_files_count();
+    int count = WVT_UTP_Memory_get_segments_count();
     WVT_UTP_Memory_erase(utp_struct.memory_size - (header_sn+1)*sizeof(WVT_UTP_Data_Header_t), sizeof (WVT_UTP_Data_Header_t));
     WVT_UTP_Data_Header_t tmp;
     for(int i=header_sn+1;i<count;i++){
@@ -217,7 +218,7 @@ WVT_UTP_Status_t WVT_UTP_Memory_find_by_uid(WVT_UTP_Data_Header_t *header, uint1
  */
 WVT_UTP_Status_t WVT_UTP_Memory_free_by_uid(uint16_t uid) {
     WVT_UTP_Data_Header_t temp;
-    if(WVT_UTP_Memory_find_by_uid(&temp, uid)!=WVT_UTP_OK) {
+    if(WVT_UTP_Memory_find_by_uid(&temp, uid)==WVT_UTP_OK) {
         return WVT_UTP_Memory_free(&temp);
     }
     return WVT_UTP_ERROR;
@@ -271,7 +272,7 @@ static WVT_UTP_Status_t WVT_UTP_Memory_erase(uint16_t address, uint16_t size)
 
 WVT_UTP_Status_t WVT_UTP_Memory_erase_all()
 {
-    return utp_struct.memory_erase(0, utp_struct.memory_page_size);
+    return utp_struct.memory_erase(0, utp_struct.memory_size);
 }
 /*!
  * Игра в тетрис с харнилищем. Смещает данные в памяти на величину shift к указанному адресу
@@ -314,7 +315,7 @@ static WVT_UTP_Status_t WVT_UTP_Memory_left_shift(uint32_t address, uint32_t shi
  */
 WVT_UTP_Status_t WVT_UTP_Memory_read_by_uid(uint16_t uid, uint32_t offset, uint32_t length, uint8_t *buffer){
     WVT_UTP_Data_Header_t temp;
-    if(WVT_UTP_Memory_find_by_uid(&temp, uid)!=WVT_UTP_OK) {
+    if(WVT_UTP_Memory_find_by_uid(&temp, uid)==WVT_UTP_OK) {
         if(temp.size<(offset+length)) return WVT_UTP_ERROR;
         return utp_struct.memory_read(temp.start_address+offset, buffer, length);
     }

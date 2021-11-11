@@ -2,7 +2,6 @@
 #define UTP_WVT_UTP_MEMORY_H
 #include "WVT_UTP_Types.h"
 
-int              WVT_UTP_Memory_get_files_count(void);
 int              WVT_UTP_Memory_get_segments_count(void);
 uint32_t         WVT_UTP_Memory_get_free_space(void);
 WVT_UTP_Status_t WVT_UTP_Memory_erase_all();

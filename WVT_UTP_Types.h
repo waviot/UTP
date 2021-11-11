@@ -27,9 +27,9 @@ typedef enum
 typedef struct
 {
     WVT_UTP_Status_t(*init)(uint32_t memory_size);  /*!< Функция записи данных в память */
-    WVT_UTP_Status_t(*memory_read)(uint16_t address, uint8_t * buffer, uint16_t size);   /*!< Функция чтения данных из памяти */
-    WVT_UTP_Status_t(*memory_write)(uint16_t address, uint8_t * buffer, uint16_t size);  /*!< Функция записи данных в память */
-    WVT_UTP_Status_t(*memory_erase)(uint16_t address, uint16_t size);  /*!< Функция записи данных в память */
+    WVT_UTP_Status_t(*memory_read)(uint32_t address, uint8_t * buffer, uint32_t size);   /*!< Функция чтения данных из памяти */
+    WVT_UTP_Status_t(*memory_write)(uint32_t address, uint8_t * buffer, uint32_t size);  /*!< Функция записи данных в память */
+    WVT_UTP_Status_t(*memory_erase)(uint32_t address, uint32_t size);  /*!< Функция записи данных в память */
     uint32_t memory_size;
     uint32_t memory_page_size;
 } WVT_UTP_Init_t;
