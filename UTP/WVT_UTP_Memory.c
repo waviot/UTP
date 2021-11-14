@@ -1,5 +1,5 @@
 #include <stdint.h>
-#include <malloc.h>
+#include <stdlib.h>
 #include "WVT_UTP_Memory.h"
 
 extern WVT_UTP_Init_t utp_struct;
@@ -69,7 +69,7 @@ WVT_UTP_GetHeader_Status_t WVT_UTP_Memory_get_header_by_serial_number(WVT_UTP_Da
     uint16_t offset = utp_struct.memory_size - sizeof(WVT_UTP_Data_Header_t)*(sn + 1);
     utp_struct.memory_read(offset, (uint8_t *)header, sizeof(WVT_UTP_Data_Header_t));
     crc = WVT_UTP_Memory_update_crc16(crc, (uint8_t *)header, sizeof(WVT_UTP_Data_Header_t)-sizeof(header->crc_of_this_struct));
-    if(crc != header->crc_of_this_struct) return WVT_UTP_GH_DATA_BROKEN;
+    if(crc != header->crc_of_this_struct || header->crc_of_this_struct == 0) return WVT_UTP_GH_DATA_BROKEN;
     return WVT_UTP_GH_OK;
 }
 
@@ -94,7 +94,7 @@ uint32_t WVT_UTP_Memory_get_free_space(void){
     int count = 0;
     WVT_UTP_Data_Header_t header;
     while(1){
-        if(WVT_UTP_Memory_get_header_by_serial_number(&header, count) != WVT_UTP_OK) break;
+        if(WVT_UTP_Memory_get_header_by_serial_number(&header, count) != WVT_UTP_GH_OK) break;
         size-= sizeof(WVT_UTP_Data_Header_t);
         size-= header.size;
         count++;
@@ -113,14 +113,17 @@ WVT_UTP_Allocator_Status_t WVT_UTP_Memory_reserve_sector(WVT_UTP_Data_Header_t *
     tmp.start_address = 0;
     tmp.size = 0;
     int count = WVT_UTP_Memory_get_segments_count();
-    if(WVT_UTP_Memory_find_by_uid(&tmp, header->uid) == WVT_UTP_OK)return WVT_UTP_ALLOC_UID_ALREADY_EXISTS; //header with uid exists
+    if(WVT_UTP_Memory_find_by_uid(&tmp, header->uid) == WVT_UTP_GH_OK)return WVT_UTP_ALLOC_UID_ALREADY_EXISTS; //header with uid exists
     if(count>0)WVT_UTP_Memory_get_header_by_serial_number(&tmp, count-1);
     if((header->size+sizeof(WVT_UTP_Data_Header_t))>WVT_UTP_Memory_get_free_space()){
         return WVT_UTP_ALLOC_NOT_ENOUGH_MEMORY;
     }
     header->start_address = tmp.start_address + tmp.size;
+    if((header->start_address & 0x3)>0){
+      header->start_address = (header->start_address & 0xFFFFFFFC) + 0x4;
+    }
     WVT_UTP_Memory_erase(header->start_address, header->size);
-    return WVT_UTP_OK;
+    return WVT_UTP_ALLOC_OK;
 }
 
 /*!
@@ -133,6 +136,7 @@ WVT_UTP_Freeze_Status_t WVT_UTP_Memory_freeze(WVT_UTP_Data_Header_t *header) {
     int offset = utp_struct.memory_size - (count + 1)*sizeof(WVT_UTP_Data_Header_t);
     if(WVT_UTP_Memory_get_segment_crc(header) == header->crc){
         WVT_UTP_Memory_update_header_crc(header);
+        WVT_UTP_Memory_erase(offset, sizeof(WVT_UTP_Data_Header_t));
         utp_struct.memory_write(offset, (uint8_t *)header, sizeof(WVT_UTP_Data_Header_t));
         return WVT_UTP_FREEZE_OK;
     }
@@ -147,7 +151,7 @@ int WVT_UTP_Memory_get_segments_count(void) {
     int count = 0;
     WVT_UTP_Data_Header_t header;
     while(1){
-        if(WVT_UTP_Memory_get_header_by_serial_number(&header, count) != WVT_UTP_OK) break;
+        if(WVT_UTP_Memory_get_header_by_serial_number(&header, count) != WVT_UTP_GH_OK) break;
         count++;
     }
     return count;
@@ -236,7 +240,7 @@ WVT_UTP_Erase_Status_t WVT_UTP_Memory_erase_by_uid(uint16_t uid) {
 WVT_UTP_Append_Status_t WVT_UTP_Memory_write(WVT_UTP_Data_Header_t *header, uint32_t offset, uint8_t *buffer, uint32_t length)
 {
     if((length+offset) > header->size) return WVT_UTP_APPEND_NOT_ENOUGH_MEMORY;
-    return utp_struct.memory_write(header->start_address+offset, buffer, length);
+    return utp_struct.memory_write(header->start_address+offset, buffer, length) == WVT_UTP_OK ? WVT_UTP_APPEND_OK : WVT_UTP_APPEND_NOT_ENOUGH_MEMORY;
 }
 /*!
  * Стирает область памяти. Функция учитывает особенности постраничной работы с FLASH-памятью
@@ -260,7 +264,7 @@ static WVT_UTP_Status_t WVT_UTP_Memory_erase(uint16_t address, uint16_t size)
         if(tail > (size - processed_bytes_count))tail = (size - processed_bytes_count);
         if(tail != utp_struct.memory_page_size){
             for(uint32_t i=0;i<tail;i++){
-                buffer[destination_shift+i] = 0xFF;
+                buffer[destination_shift+i] = 0x00;
             }
             utp_struct.memory_write(destination_page_address, buffer, utp_struct.memory_page_size);
         }
@@ -280,7 +284,7 @@ WVT_UTP_Status_t WVT_UTP_Memory_erase_all()
  * Необходима для эффективного использования памятми после удаления данных
  * @param address Адрес в памяти к которому будут смещены все элементы начиная с адреса (address+shift)
  * @param shift Величина сдвига данных
- * @param shift Количество сдвигаемых байт
+ * @param count Количество сдвигаемых байт
  */
 static WVT_UTP_Status_t WVT_UTP_Memory_left_shift(uint32_t address, uint32_t shift, uint32_t count)
 {
@@ -316,7 +320,7 @@ static WVT_UTP_Status_t WVT_UTP_Memory_left_shift(uint32_t address, uint32_t shi
  */
 WVT_UTP_Read_Status_t WVT_UTP_Memory_read_by_uid(uint16_t uid, uint32_t offset, uint32_t length, uint8_t *buffer){
     WVT_UTP_Data_Header_t temp;
-    if(WVT_UTP_Memory_find_by_uid(&temp, uid)==WVT_UTP_OK) {
+    if(WVT_UTP_Memory_find_by_uid(&temp, uid)==WVT_UTP_GH_OK) {
         if(temp.size<(offset+length)) return WVT_UTP_READ_SIZE_OUT_OF_RANGE;
         if(utp_struct.memory_read(temp.start_address+offset, buffer, length) != WVT_UTP_OK){
             return WVT_UTP_READ_HAL_ERROR;

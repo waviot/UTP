@@ -10,11 +10,11 @@ typedef struct {
     uint32_t size;                 //Вычисляется по длинне данных
     uint16_t crc;                  //CRC данных вычисляет передающая стороная
     uint16_t crc_of_this_struct;   //Адрес хранения выделяет приёмная сторона
-#ifdef __cplusplus
+//#ifdef __cplusplus
     }                           WVT_UTP_Data_Header_t;
-#else
-    }   __attribute__((packed)) WVT_UTP_Data_Header_t;
-#endif
+//#else
+//    }   __attribute__((packed)) WVT_UTP_Data_Header_t;
+//#endif
 
 /*!
  * Результат выполнения операции

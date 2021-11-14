@@ -108,7 +108,7 @@ void WVT_UTP_append_data_handler(uint8_t *request, uint32_t request_length,
 void WVT_UTP_save_data_handler(uint8_t *request, uint32_t request_length,
                                   uint8_t *response, uint32_t *response_length)
 {
-    if(WVT_UTP_Memory_freeze(&current_segment) == WVT_UTP_OK){
+    if(WVT_UTP_Memory_freeze(&current_segment) == WVT_UTP_FREEZE_OK){
         WVT_UTP_uint32_to_array(&response[0], current_segment.crc);
         WVT_UTP_uint32_to_array(&response[4], current_segment.crc_of_this_struct);
         *response_length = 8;

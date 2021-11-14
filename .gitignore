@@ -1,0 +1,23 @@
+﻿################################################################################
+# Данный GITIGNORE-файл был автоматически создан Microsoft(R) Visual Studio.
+################################################################################
+
+Debug
+Release
+VisualGDB
+*.opensdf
+*.sdf
+*.suo
+*.old
+.vs
+VisualGDBCache
+CodeDB
+UTP.Fw/EWARM/UTP.Fw/Exe/
+
+UTP.Fw/EWARM/UTP.Fw/List/
+
+UTP.Fw/EWARM/UTP.Fw/Obj/
+
+UTP.Fw/EWARM/settings/
+
+UTP.Fw/EWARM/UTP.Fw.dep
