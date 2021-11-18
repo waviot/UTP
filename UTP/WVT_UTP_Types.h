@@ -100,6 +100,7 @@ typedef struct
     WVT_UTP_Status_t(*memory_erase)(uint32_t address, uint32_t size);  /*!< Функция записи данных в память */
     uint32_t memory_size;
     uint32_t memory_page_size;
+    uint8_t storage_initial_value;
 } WVT_UTP_Init_t;
 
 #endif

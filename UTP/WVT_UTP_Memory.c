@@ -81,7 +81,7 @@ WVT_UTP_GetHeader_Status_t WVT_UTP_Memory_get_header_by_serial_number(WVT_UTP_Da
  */
 WVT_UTP_Status_t WVT_UTP_Memory_set_header_by_serial_number(WVT_UTP_Data_Header_t *header, uint16_t sn){
     int offset = utp_struct.memory_size - (sn+1)*sizeof(WVT_UTP_Data_Header_t);
-    utp_struct.memory_erase(offset, sizeof(WVT_UTP_Data_Header_t));
+    WVT_UTP_Memory_erase(offset, sizeof(WVT_UTP_Data_Header_t));
     return utp_struct.memory_write(offset, (uint8_t *)header, sizeof(WVT_UTP_Data_Header_t));
 }
 
@@ -122,7 +122,8 @@ WVT_UTP_Allocator_Status_t WVT_UTP_Memory_reserve_sector(WVT_UTP_Data_Header_t *
     if((header->start_address & 0x3)>0){
       header->start_address = (header->start_address & 0xFFFFFFFC) + 0x4;
     }
-    WVT_UTP_Memory_erase(header->start_address, header->size);
+    uint32_t size = (header->size & 0x3)>0 ? ((header->size & 0xFFFFFFFC) + 4) : header->size;
+    WVT_UTP_Memory_erase(header->start_address, size);
     return WVT_UTP_ALLOC_OK;
 }
 
@@ -185,11 +186,14 @@ WVT_UTP_Erase_Status_t WVT_UTP_Memory_free(WVT_UTP_Data_Header_t *header){
     int count = WVT_UTP_Memory_get_segments_count();
     WVT_UTP_Memory_erase(utp_struct.memory_size - (header_sn+1)*sizeof(WVT_UTP_Data_Header_t), sizeof (WVT_UTP_Data_Header_t));
     WVT_UTP_Data_Header_t tmp;
+    uint32_t end_address = header->start_address;
     for(int i=header_sn+1;i<count;i++){
         WVT_UTP_Memory_get_header_by_serial_number(&tmp, i);
-        WVT_UTP_Memory_left_shift(tmp.start_address-header->size,header->size,tmp.size);
-        tmp.start_address -= header->size;
+        if((end_address & 0x3) != 0) end_address = ((end_address & 0xFFFFFFFC) + 0x4);
+        WVT_UTP_Memory_left_shift(end_address, tmp.start_address-end_address,tmp.size);
+        tmp.start_address = end_address;
         WVT_UTP_Memory_update_header_crc(&tmp);
+        end_address = tmp.start_address+tmp.size;
         WVT_UTP_Memory_set_header_by_serial_number(&tmp,i-1);
     }
     WVT_UTP_Memory_erase(utp_struct.memory_size - (count)*sizeof(WVT_UTP_Data_Header_t), sizeof (WVT_UTP_Data_Header_t));
@@ -263,8 +267,9 @@ static WVT_UTP_Status_t WVT_UTP_Memory_erase(uint16_t address, uint16_t size)
         uint16_t tail = utp_struct.memory_page_size - destination_shift;                      //длина данных для записи
         if(tail > (size - processed_bytes_count))tail = (size - processed_bytes_count);
         if(tail != utp_struct.memory_page_size){
-            for(uint32_t i=0;i<tail;i++){
-                buffer[destination_shift+i] = 0x00;
+            for(uint32_t i=0;i<tail;i++)
+            {
+                buffer[destination_shift+i] = utp_struct.storage_initial_value;
             }
             utp_struct.memory_write(destination_page_address, buffer, utp_struct.memory_page_size);
         }

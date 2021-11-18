@@ -74,12 +74,13 @@ int main(void)
   MX_USART2_UART_Init();
   
   WVT_UTP_Init_t settings;
-  settings.memory_size        = STORAGE_SIZE;    
-  settings.memory_page_size   = FLASH_PAGE_SIZE; 
-  settings.init = &memory_init;
-  settings.memory_erase = &memory_erase;
-  settings.memory_read = &memory_read;
-  settings.memory_write = &memory_write;
+  settings.memory_size           = STORAGE_SIZE;    
+  settings.memory_page_size      = FLASH_PAGE_SIZE; 
+  settings.init                  = &memory_init;
+  settings.memory_erase          = &memory_erase;
+  settings.memory_read           = &memory_read;
+  settings.memory_write          = &memory_write;
+  settings.storage_initial_value = 0x00;
   WVT_UTP_init(settings);
   
   //memory_erase(0, STORAGE_SIZE);
@@ -90,10 +91,10 @@ int main(void)
   while (1)
   {
       uint8_t current_byte;
-      if( HAL_UART_Receive(&huart2, &current_byte, 1, 100) == HAL_OK){
+      if( HAL_UART_Receive(&huart2, &current_byte, 1, 1000) == HAL_OK){
         if(last_received_byte==0xAA){
             if(current_byte == 0){
-                 if(cursor<255)rx_buffer[cursor++] = 0xAA;
+                 if(cursor<128)rx_buffer[cursor++] = 0xAA;
             }
             if(current_byte == 1){
                  cursor = 0;
@@ -114,15 +115,17 @@ int main(void)
                  b = 0xAA;
                  HAL_UART_Transmit(&huart2, &b, 1, 1000); b = 2;
                  HAL_UART_Transmit(&huart2, &b, 1, 1000);
-                 HAL_UART_Transmit(&huart2, tx_buffer, response_length, 1000);
+                 //HAL_UART_Transmit(&huart2, tx_buffer, response_length, 1000);
             }
         }else{           
             if(current_byte != 0xAA){
-                if(cursor<255)rx_buffer[cursor++] = current_byte;
+                if(cursor<128)rx_buffer[cursor++] = current_byte;
             }
         }
         last_received_byte = current_byte;
-      }   
+      }else{
+        huart2.Instance->ICR |= 0x1F;
+      }
   }
 }
 
@@ -170,7 +173,7 @@ void SystemClock_Config(void)
 static void MX_USART2_UART_Init(void)
 {
   huart2.Instance = USART2;
-  huart2.Init.BaudRate = 9600;
+  huart2.Init.BaudRate = 115200;
   huart2.Init.WordLength = UART_WORDLENGTH_8B;
   huart2.Init.StopBits = UART_STOPBITS_1;
   huart2.Init.Parity = UART_PARITY_NONE;
