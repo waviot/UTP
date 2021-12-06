@@ -52,7 +52,11 @@ std::vector<uint8_t> Network::Request(std::vector<uint8_t>  request_data) {
     }else{
         length = len_arr[0] << 8 | len_arr[1];
         std::vector<uint8_t> resp(length);
-        if(network_read(socketFd, resp.data(), resp.size())==resp.size())return resp;
+        if(network_read(socketFd, resp.data(), resp.size())==resp.size()){
+            close(socketFd);
+            return resp;
+        }
     }
+    close(socketFd);
     return {};
 }

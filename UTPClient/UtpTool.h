@@ -10,6 +10,7 @@ public:
     UtpTool(ITransport * net): _net(net){}
     WVT_UTP_Allocator_Status_t CreateSpace(uint16_t uid, uint32_t size, uint16_t crc, uint32_t & startAddress);
     WVT_UTP_Append_Status_t AppendData(std::vector<uint8_t> &data);
+    WVT_UTP_Append_Status_t AppendData(std::vector<uint8_t> & data, int partSize);
     WVT_UTP_Freeze_Status_t SaveData(uint16_t & crc);
     uint32_t GetFreeSpace(uint32_t & segmentsCount);
     WVT_UTP_GetHeader_Status_t GetHeaderBySerial(uint16_t id, WVT_UTP_Data_Header_t & header);

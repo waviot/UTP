@@ -39,6 +39,7 @@ WVT_UTP_Allocator_Status_t UtpTool::CreateSpace(uint16_t uid, uint32_t size, uin
     return WVT_UTP_ALLOC_OK;
 }
 
+
 WVT_UTP_Append_Status_t UtpTool::AppendData(std::vector<uint8_t> & data){
     std::vector<uint8_t> request;
     request.push_back(1);
@@ -50,13 +51,30 @@ WVT_UTP_Append_Status_t UtpTool::AppendData(std::vector<uint8_t> & data){
     return WVT_UTP_APPEND_OK;
 }
 
+WVT_UTP_Append_Status_t UtpTool::AppendData(std::vector<uint8_t> & data, int partSize)
+{
+    std::vector<uint8_t> request;
+    int byteCounter = 0;
+    while (byteCounter < data.size()){
+        int size = data.size() - byteCounter;
+        if(size > partSize) size = partSize;
+        request.insert(request.begin(), data.begin()+byteCounter, data.begin()+(byteCounter+size));
+        auto result = AppendData(request);
+        if(result != WVT_UTP_APPEND_OK) return result;
+        byteCounter += request.size();
+        request.clear();
+    }   
+    return WVT_UTP_APPEND_OK;
+}
+
+
 WVT_UTP_Freeze_Status_t UtpTool::SaveData(uint16_t & crc){
     std::vector<uint8_t> request;
     request.push_back(2);
     auto response = _net->Request(request);
     if(response.size() == 2){
-        return (WVT_UTP_Freeze_Status_t)response[1];
         std::cout << "Can't save data to current memory space. Code: " << response.at(1) << std::endl;
+        return (WVT_UTP_Freeze_Status_t)response[1];
     }else{
         DecodeValue(&response.data()[1], crc);
     }
@@ -113,14 +131,14 @@ WVT_UTP_Data_Header_t UtpTool::GetHeaderByUid(uint16_t uid){
     request.push_back(uid >> 8);
     request.push_back(uid & 0xFF);
     auto response = _net->Request(request);
-    if(response.size() != 17){
+    if(response.size() == 2){
         std::cout << "Can't read segment header. Code: " << response.at(1) << std::endl;
     }else{
-        DecodeValue(&response.data()[0], header.uid);
-        DecodeValue(&response.data()[2], header.start_address);
-        DecodeValue(&response.data()[6], header.size);
-        DecodeValue(&response.data()[10], header.crc);
-        DecodeValue(&response.data()[12], header.crc_of_this_struct);
+        DecodeValue(&response.data()[1], header.uid);
+        DecodeValue(&response.data()[3], header.start_address);
+        DecodeValue(&response.data()[7], header.size);
+        DecodeValue(&response.data()[11], header.crc);
+        DecodeValue(&response.data()[13], header.crc_of_this_struct);
     }
     return header;
 }

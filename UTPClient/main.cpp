@@ -3,26 +3,18 @@
 #include <algorithm>
 #include <fstream>
 #include <iomanip>
+
 #include "Network.h"
 #include "UtpTool.h"
 #include "UTool.h"
+#include "SerialPort.h"
+#include "SerialCommunication.h"
 
-void PrintHelp()
-{
-    std::cout << "Options:" << std::endl;
-    std::cout << "-l filename -uid id\t\tUpload file to storage" << std::endl;
-    std::cout << "-i\t\t\t\t\tGet memory info" << std::endl;
-    std::cout << "-ea\t\t\t\t\tErase all" << std::endl;
-    std::cout << "-eu uid\t\t\t\tErase by uid" << std::endl;
-    std::cout << "-r uid -s size -f filename\t\t\t\tExport memory to file" << std::endl;
-}
-
-void PrintMemoryInfo(){
-    Network net("127.0.0.1", 8000);
-    UtpTool utp(&net);
+void PrintMemoryInfo(ITransport * transport){
+    UtpTool utp(transport);
     uint32_t count;
     auto freeSpace = utp.GetFreeSpace(count);
-    std::cout << "Segments count: " << count << std::endl;
+    std::cout << "Segments count: " << std::dec << count << std::endl;
     std::cout << "Free: 0x" << std::hex<< freeSpace << std::endl;
     if(count>0){
         std::cout << "_______________________________________________________";
@@ -41,25 +33,23 @@ void PrintMemoryInfo(){
                       << "|0x" << std::setw(13) << std::hex << header.start_address
                       << "|0x" << std::setw(13) << std::hex << header.size
                       << "|0x" << std::setw(13) << std::hex << header.crc
-                      << "|0x" << std::hex << header.crc_of_this_struct << "      |" << std::endl;
+                      << "|0x" << std::setw(4)<< std::hex << header.crc_of_this_struct << "      |" << std::endl;
             std::cout << "=======================================================";
             std::cout << "=======================" << std::endl;
         }
     }
 }
 
-void FullEraseMemory()
+void FullEraseMemory(ITransport * transport)
 {
-    Network net("127.0.0.1", 8000);
-    UtpTool utp(&net);
+    UtpTool utp(transport);
     utp.EraseAll();
     std::cout << "Memory full erasing" << std::endl;
 }
 
-void EraseMemorySegment(char *uidString)
+void EraseMemorySegment(ITransport * transport, char *uidString)
 {
-    Network net("127.0.0.1", 8000);
-    UtpTool utp(&net);
+    UtpTool utp(transport);
     std::stringstream strValue;
     strValue << uidString;
     uint16_t uid;
@@ -67,14 +57,9 @@ void EraseMemorySegment(char *uidString)
     utp.EraseSegmentByUid(uid);
 }
 
-void Upload(char *file, char *uidString){
+void Upload(ITransport * transport, char *file, uint16_t uid){
     std::cout << "File: " << file << std::endl;
     std::ifstream fin(file);
-
-    std::stringstream strValue;
-    strValue << uidString;
-    uint16_t uid;
-    strValue >> uid;
 
     fin.seekg(0, std::ios::end);
     size_t length = fin.tellg();
@@ -84,9 +69,7 @@ void Upload(char *file, char *uidString){
     std::cout << "\tFile size: 0x" << std::hex << data.size() << std::endl;
     auto crc_value = GetCrc16OfVector(data);
     std::cout << "\tData CRC16: 0x" << std::hex << crc_value << std::endl;
-
-    Network net("127.0.0.1", 8000);
-    UtpTool utp(&net);
+    UtpTool utp(transport);
 
     uint32_t  start_address;
     auto result = utp.CreateSpace(uid, data.size(), crc_value, start_address);
@@ -99,7 +82,7 @@ void Upload(char *file, char *uidString){
     } else if(result == WVT_UTP_ALLOC_UID_ALREADY_EXISTS){
         std::cout << "\tThe same UID already exists. the parameter must be unique " << std::endl;
     }else if(result == WVT_UTP_ALLOC_OK){
-        auto appendResult = utp.AppendData( data);
+        auto appendResult = utp.AppendData(data, 64);
         if(appendResult == WVT_UTP_APPEND_WRONG_PARAMETERS){
             std::cout << "\tError. Perhaps the length of the transmitted data has exceeded the permissible value" << std::endl;
         }else if(appendResult == WVT_UTP_APPEND_NOT_ENOUGH_MEMORY){
@@ -114,54 +97,86 @@ void Upload(char *file, char *uidString){
     }
 }
 
-void ExportMemoryToFile(char *filename, char *uidString, char *sizeString)
+
+
+void ExportMemoryToFile(ITransport * transport, char *filename, uint16_t uid, uint32_t size)
 {
-    Network net("127.0.0.1", 8000);
-    UtpTool utp(&net);
-    std::stringstream strValue;
-    strValue << uidString;
-    uint16_t uid;
-    strValue >> uid;
-    strValue.clear();
-    strValue << sizeString;
-    uint16_t size;
-    strValue >> size;
+    UtpTool utp(transport);
     auto response = utp.ReadSegment(uid, 0, size);
     std::ofstream file;
     file.open(filename);
-    /*for(auto v : response){
-        file<<v;
-    }*/
     file.write(reinterpret_cast<const char *>(response.data()), response.size());
     file.close();
     std::cout << "Reading memory segment by UID " << uid << std::endl;
 }
+
+void ExportMemoryToFile(ITransport * transport, char *filename, uint16_t uid)
+{
+    UtpTool utp(transport);
+    auto header = utp.GetHeaderByUid(uid);
+    ExportMemoryToFile(transport, filename, uid, header.size);
+}
+
+std::string random_string( size_t length )
+{
+    auto randchar = []() -> char
+    {
+        const char charset[] =
+        "0123456789"
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        "abcdefghijklmnopqrstuvwxyz";
+        const size_t max_index = (sizeof(charset) - 1);
+        return charset[ rand() % max_index ];
+    };
+    std::string str(length,0);
+    std::generate_n( str.begin(), length, randchar );
+    return str;
+}
+
+void Test(ITransport * transport)
+{  
+    srand(time(0));
+    int filesCount = rand() % 100 + 3;
+    FullEraseMemory(transport);
+    for(int i=0;i<filesCount;i++)
+    {
+        char filename[64];
+        sprintf(filename,"../../content/input_%d.txt", i);       
+        std::ofstream out(filename);
+        out << random_string(rand() % 512);
+        out.close();
+        Upload(transport, filename, i);
+    }
+
+    for(int i=0;i<filesCount;i++)
+    {
+        char filename[64];
+        sprintf(filename,"../../content/output_%d.txt", i); 
+        ExportMemoryToFile(transport, filename, i);
+    }  
+    PrintMemoryInfo(transport);
+}
+
 int main(int argc, char * argv[]) {
-    if(CmdOptionExists(argv, argv+argc, "-h"))
+    if(CmdOptionExists(argv, argv+argc, "-serial"))
     {
-        PrintHelp();
+        ITransport * transport;
+        auto detectedDevices = Serial::GetSerialPort();
+        for(auto & device : detectedDevices){
+            if(device.driver == "cp210x")
+            {
+                std::cout << device << std::endl;
+                transport = new SerialCommunication(device);
+                Test(transport); 
+                free(transport);
+            }
+        }
+         
     }
-    if(CmdOptionExists(argv, argv+argc, "-l"))
+    if(CmdOptionExists(argv, argv+argc, "-tcp"))
     {
-        Upload(GetCmdOption(argv, argv + argc, "-l"),
-               GetCmdOption(argv, argv + argc, "-uid"));
+        ITransport * transport = new Network("127.0.0.1", 8000);
+        Test(transport); 
     }
-    if(CmdOptionExists(argv, argv+argc, "-i"))
-    {
-        PrintMemoryInfo();
-    }
-    if(CmdOptionExists(argv, argv+argc, "-ea"))
-    {
-        FullEraseMemory();
-    }
-    if(CmdOptionExists(argv, argv+argc, "-eu"))
-    {
-        EraseMemorySegment(GetCmdOption(argv, argv + argc, "-eu"));
-    }
-    if(CmdOptionExists(argv, argv+argc, "-r"))
-    {
-        ExportMemoryToFile(GetCmdOption(argv, argv + argc, "-f"),
-                           GetCmdOption(argv, argv + argc, "-r"),
-                           GetCmdOption(argv, argv + argc, "-s"));
-    }
+   
 }

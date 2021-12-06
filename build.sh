@@ -1,14 +1,16 @@
 #!/bin/bash
 rm -rf build>/dev/null
+rm -rf content>/dev/null
+mkdir content
 mkdir build && cd build
-mkdir UTP
-mkdir UTPClient
+mkdir client
+mkdir server
 
-cd UTP 
+cd server 
 cmake ../../UTP
 make 
 
-cd ../UTPClient
+cd ../client
 cmake ../../UTPClient
 make 
 

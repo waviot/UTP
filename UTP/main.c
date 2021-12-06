@@ -86,12 +86,13 @@ WVT_UTP_Status_t memory_erase(uint32_t address, uint32_t size) {
 
 void main() {
     WVT_UTP_Init_t settings;
-    settings.memory_size        = 1024 * 4; //4kB size
-    settings.memory_page_size = 8;          //128 bytes
+    settings.memory_size        = 0x10000;   //4kB size
+    settings.memory_page_size = 128;          //128 bytes
     settings.init = &memory_init;
     settings.memory_erase = &memory_erase;
     settings.memory_read = &memory_read;
     settings.memory_write = &memory_write;
+    settings.storage_initial_value = 0xFF;
     WVT_UTP_init(settings);
     network_init(8000);
     while(1){
